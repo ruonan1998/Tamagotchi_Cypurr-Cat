@@ -132,7 +132,9 @@
             max-width: 80%;
             max-height: 80%;
             image-rendering: pixelated;
-            animation: petGlitch 8s infinite alternate;
+            animation: petGlitch 8s infinite alternate, idleBreathe 2.6s ease-in-out infinite;
+            transform-origin: center bottom;
+            transition: transform 0.15s ease-out;
         }
 
         @keyframes petGlitch {
@@ -140,6 +142,40 @@
             61% { transform: translate(2px, 2px) scale(1.02); filter: brightness(1.5) contrast(0.8); }
             66% { transform: translate(-3px, 3px) scale(0.98); filter: brightness(0.8) contrast(1.2); }
             71% { transform: translate(1px, -1px); filter: brightness(1.2) contrast(0.9); }
+        }
+
+        /* 呼吸/待机律动：让静态GIF帧之间也有"活着"的感觉 */
+        @keyframes idleBreathe {
+            0%, 100% { transform: scale(1, 1) rotate(0deg); }
+            50% { transform: scale(1.035, 0.965) rotate(-1deg); }
+        }
+
+        /* 被戳一下的开心弹跳 */
+        @keyframes petBounce {
+            0% { transform: translateY(0) scale(1); }
+            30% { transform: translateY(-18px) scale(1.08, 0.92); }
+            55% { transform: translateY(0) scale(0.95, 1.08); }
+            75% { transform: translateY(-6px) scale(1.03, 0.97); }
+            100% { transform: translateY(0) scale(1); }
+        }
+        #pet-image.pet-bounce { animation: petBounce 0.55s ease-out; }
+
+        #pet-image-container { cursor: pointer; }
+
+        /* 互动粒子效果：爱心/音符/星星飘出屏幕 */
+        .particle {
+            position: absolute;
+            bottom: 15%;
+            font-size: 18px;
+            pointer-events: none;
+            animation: floatUp 1.4s ease-out forwards;
+            z-index: 5;
+            text-shadow: 0 0 6px currentColor;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(0.5) rotate(0deg); opacity: 0; }
+            15% { opacity: 1; transform: translateY(-10px) scale(1) rotate(-5deg); }
+            100% { transform: translateY(-90px) scale(1.15) rotate(8deg); opacity: 0; }
         }
 
         /* 状态条样式 */
@@ -284,15 +320,47 @@
             font-family: 'Press Start 2P', cursive;
             border-radius: 3px;
         }
+
+        /* 标题栏 + 音频开关 */
+        .title-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        #audio-toggle {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 2px solid #00ffff;
+            background: rgba(0,0,0,0.6);
+            color: #00ffff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 8px rgba(0,255,255,0.4);
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        #audio-toggle:hover { transform: scale(1.1); box-shadow: 0 0 14px #00ffff; }
+        #audio-toggle.playing { color: #1a1a2e; background: #00ffff; animation: audioPulse 1.2s infinite; }
+        @keyframes audioPulse {
+            0%, 100% { box-shadow: 0 0 8px #00ffff; }
+            50% { box-shadow: 0 0 18px #00ffff, 0 0 4px #fff; }
+        }
     </style>
 </head>
 <body>
 
     <div class="tamagotchi-shell">
-        <h2 style="color: #00ffff; text-shadow: 0 0 10px #00ffff;">CYPURR CAT</h2>
+        <div class="title-bar">
+            <h2 style="color: #00ffff; text-shadow: 0 0 10px #00ffff; margin: 0;">CYPURR CAT</h2>
+            <button id="audio-toggle" onclick="toggleAudio()" title="8bit BGM 开/关">🔇</button>
+        </div>
         
         <div class="screen" id="pet-screen">
-            <div id="pet-image-container">
+            <div id="pet-image-container" onclick="pokePet()">
                 <img id="pet-image" src="pixel-cat-glitch-stage1.gif" alt="CyPurr Pet" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 100 100&quot;><text x=&quot;50%&quot; y=&quot;50%&quot; font-family=&quot;monospace&quot; font-size=&quot;40&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>NO IMG</text><rect x=&quot;10&quot; y=&quot;10&quot; width=&quot;80&quot; height=&quot;80&quot; fill=&quot;rgba(0,0,0,0.5)&quot; stroke=&quot;red&quot; stroke-width=&quot;2&quot; /></svg>';" >
             </div>
         </div>
@@ -349,12 +417,134 @@
     </div>
 
     <script>
+        // ============ 8BIT 音频引擎（Web Audio 合成，无需外部音频文件） ============
+        const AudioEngine = (() => {
+            let ctx = null, masterGain = null, bgmGain = null, sfxGain = null;
+            let bgmPlaying = false, bgmTimer = null, bgmStep = 0;
+
+            function ensureCtx() {
+                if (!ctx) {
+                    ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    masterGain = ctx.createGain(); masterGain.gain.value = 0.5; masterGain.connect(ctx.destination);
+                    bgmGain = ctx.createGain(); bgmGain.gain.value = 0.16; bgmGain.connect(masterGain);
+                    sfxGain = ctx.createGain(); sfxGain.gain.value = 0.55; sfxGain.connect(masterGain);
+                }
+                if (ctx.state === 'suspended') ctx.resume();
+                return ctx;
+            }
+
+            function playTone(freq, startTime, duration, dest, type = 'square', vol = 0.5, glideTo = null) {
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, startTime);
+                if (glideTo) osc.frequency.exponentialRampToValueAtTime(glideTo, startTime + duration);
+                g.gain.setValueAtTime(0.0001, startTime);
+                g.gain.linearRampToValueAtTime(vol, startTime + 0.012);
+                g.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+                osc.connect(g); g.connect(dest);
+                osc.start(startTime); osc.stop(startTime + duration + 0.03);
+            }
+
+            // 8bit 循环旋律（主音 + 低音贝斯）
+            const bgmMelody = [523,659,784,659,523,659,784,988,880,784,659,523,587,659,523,440];
+            const bgmBass   = [131,131,165,165,196,196,165,165];
+            const stepDur = 0.15;
+
+            function scheduleBgmStep() {
+                if (!bgmPlaying) return;
+                const t = ctx.currentTime + 0.02;
+                playTone(bgmMelody[bgmStep % bgmMelody.length], t, stepDur * 0.85, bgmGain, 'square', 0.4);
+                if (bgmStep % 2 === 0) {
+                    playTone(bgmBass[(bgmStep / 2) % bgmBass.length], t, stepDur * 1.8, bgmGain, 'triangle', 0.35);
+                }
+                bgmStep++;
+                bgmTimer = setTimeout(scheduleBgmStep, stepDur * 1000);
+            }
+
+            function startBgm() { ensureCtx(); if (bgmPlaying) return; bgmPlaying = true; bgmStep = 0; scheduleBgmStep(); }
+            function stopBgm() { bgmPlaying = false; clearTimeout(bgmTimer); }
+            function toggleBgm() { if (bgmPlaying) { stopBgm(); return false; } startBgm(); return true; }
+
+            // --- 音效：合成猫叫与交互反馈 ---
+            function sfxMeow() {
+                ensureCtx(); const t = ctx.currentTime;
+                playTone(650, t, 0.16, sfxGain, 'sawtooth', 0.45, 950);
+                playTone(950, t + 0.11, 0.14, sfxGain, 'sawtooth', 0.3, 550);
+            }
+            function sfxFeed() {
+                ensureCtx(); const t = ctx.currentTime;
+                [523, 659, 784, 1047].forEach((f, i) => playTone(f, t + i * 0.07, 0.09, sfxGain, 'square', 0.4));
+            }
+            function sfxPlay() {
+                ensureCtx(); const t = ctx.currentTime;
+                [784, 988, 1175].forEach((f, i) => playTone(f, t + i * 0.06, 0.12, sfxGain, 'square', 0.45));
+            }
+            function sfxClean() {
+                ensureCtx(); const t = ctx.currentTime;
+                playTone(320, t, 0.25, sfxGain, 'triangle', 0.4, 950);
+            }
+            function sfxSleep() {
+                ensureCtx(); const t = ctx.currentTime;
+                [440, 349, 262].forEach((f, i) => playTone(f, t + i * 0.16, 0.3, sfxGain, 'sine', 0.3));
+            }
+            function sfxCoin() {
+                ensureCtx(); const t = ctx.currentTime;
+                playTone(988, t, 0.06, sfxGain, 'square', 0.4);
+                playTone(1318, t + 0.06, 0.12, sfxGain, 'square', 0.4);
+            }
+            function sfxError() {
+                ensureCtx(); const t = ctx.currentTime;
+                playTone(160, t, 0.2, sfxGain, 'sawtooth', 0.35);
+            }
+            function sfxEvolve() {
+                ensureCtx(); const t = ctx.currentTime;
+                [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => playTone(f, t + i * 0.1, 0.18, sfxGain, 'square', 0.5));
+            }
+            function sfxDie() {
+                ensureCtx(); const t = ctx.currentTime;
+                playTone(300, t, 0.5, sfxGain, 'sawtooth', 0.4, 60);
+            }
+
+            return { startBgm, stopBgm, toggleBgm, sfxMeow, sfxFeed, sfxPlay, sfxClean, sfxSleep, sfxCoin, sfxError, sfxEvolve, sfxDie };
+        })();
+
+        function toggleAudio() {
+            const btn = document.getElementById('audio-toggle');
+            const isPlaying = AudioEngine.toggleBgm();
+            btn.textContent = isPlaying ? '🔊' : '🔇';
+            btn.classList.toggle('playing', isPlaying);
+            AudioEngine.sfxCoin();
+        }
+
+        // --- 互动粒子效果：戳猫猫时飘出的爱心/音符 ---
+        function spawnParticles(container, emojis, count = 6) {
+            for (let i = 0; i < count; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+                p.style.left = (30 + Math.random() * 40) + '%';
+                p.style.animationDelay = (Math.random() * 0.25) + 's';
+                container.appendChild(p);
+                setTimeout(() => p.remove(), 1600);
+            }
+        }
+
+        function pokePet() {
+            if (!petState.isAlive) return;
+            AudioEngine.sfxMeow();
+            petImageEl.classList.remove('pet-bounce');
+            void petImageEl.offsetWidth; // 强制重绘以重触发动画
+            petImageEl.classList.add('pet-bounce');
+            spawnParticles(document.getElementById('pet-image-container'), ['💖', '✨', '🎵'], 5);
+        }
+
         // --- 游戏配置 ---
         const updateInterval = 4000; 
 
         const PET_IMAGES = {
             'stage1_normal': 'pixel-cat-glitch-stage1.gif', 
-            'stage1_eating': 'pixel-cat-glitch-stage1-eating.jpg', 
+            'stage1_eating': 'pixel-cat-glitch-stage1-eating.gif', 
             'stage1_sleeping': 'pixel-cat-glitch-stage1-sleeping.png', 
             'stage1_unhappy': 'pixel-cat-glitch-stage1-unhappy.gif',
             'stage2_normal': 'pixel-cat-glitch-stage2-punk.gif',
@@ -500,6 +690,7 @@
             const newStageConfig = petStages[newStage];
             stageValueEl.textContent = newStage;
             stageNameEl.textContent = newStageConfig.name;
+            AudioEngine.sfxEvolve();
             addMessage(`[EVO] PET EVOLVED TO STAGE ${newStage}: ${newStageConfig.name}!`);
             alert(`恭喜！你的 CyPurr 进化到了 ${newStageConfig.name}！`);
             
@@ -556,6 +747,10 @@
 
         function die() {
             petState.isAlive = false;
+            AudioEngine.sfxDie();
+            AudioEngine.stopBgm();
+            document.getElementById('audio-toggle').textContent = '🔇';
+            document.getElementById('audio-toggle').classList.remove('playing');
             petImageEl.src = 'data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 100 100&quot;><text x=&quot;50%&quot; y=&quot;50%&quot; font-family=&quot;monospace&quot; font-size=&quot;50&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>[OFFLINE]</text><text x=&quot;50%&quot; y=&quot;80%&quot; font-family=&quot;monospace&quot; font-size=&quot;14&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>[CYPURR_SYSTEM_OFFLINE]</text></svg>';
             petImageEl.alt = "Pet Offline";
             addMessage("CRITICAL ERROR: CYPURR SYSTEM OFFLINE. REBOOT REQUIRED.");
@@ -593,10 +788,12 @@
             if (petState.coins >= item.cost) {
                 petState.coins -= item.cost;
                 item.effect();
+                AudioEngine.sfxCoin();
                 addMessage(`Purchased ${item.name}. Status updated!`);
                 closeShop();
                 updateStatus();
             } else {
+                AudioEngine.sfxError();
                 addMessage(`ERROR: Insufficient $CØIN. Need $${item.cost}.`);
             }
         }
@@ -604,17 +801,21 @@
         // --- 交互按钮功能 ---
         function feedPet() {
             if (!petState.isAlive) return;
+            AudioEngine.sfxFeed();
             setPetImage('eating');
             petState.hp = Math.min(100, petState.hp + 25);
             petState.boredom = Math.min(100, petState.boredom + 5);
             petState.dnaMemory.fedCount++;
             addMessage("Energy drink consumed. HP +25.");
+            spawnParticles(document.getElementById('pet-image-container'), ['🍔', '⚡'], 4);
             setTimeout(() => setPetImage('normal'), 1500); 
         }
 
         function playPet() {
             if (!petState.isAlive) return;
-            
+            AudioEngine.sfxPlay();
+            AudioEngine.sfxMeow();
+
             const coinGain = 5 + Math.floor(Math.random() * 3);
             petState.coins += coinGain;
 
@@ -622,21 +823,29 @@
             petState.hp = Math.max(0, petState.hp - 10);
             petState.dnaMemory.playCount++;
             addMessage(`Noise music engaged. Boredom -35. $CØIN +${coinGain}!`);
+            petImageEl.classList.remove('pet-bounce');
+            void petImageEl.offsetWidth;
+            petImageEl.classList.add('pet-bounce');
+            spawnParticles(document.getElementById('pet-image-container'), ['🎵', '💿', '✨'], 5);
         }
 
         function cleanPet() {
             if (!petState.isAlive) return;
+            AudioEngine.sfxClean();
             petState.cleanliness = Math.min(100, petState.cleanliness + 40);
             addMessage("Digital waste purged. Cleanliness +40.");
+            spawnParticles(document.getElementById('pet-image-container'), ['🫧', '✨'], 4);
         }
 
         function restPet() {
             if (!petState.isAlive) return;
+            AudioEngine.sfxSleep();
             setPetImage('sleeping');
             petState.hp = Math.min(100, petState.hp + 20);
             petState.boredom = Math.max(0, petState.boredom - 15);
             petState.dnaMemory.restCount++;
             addMessage("CyPurr is resting. HP +20.");
+            spawnParticles(document.getElementById('pet-image-container'), ['💤'], 3);
             setTimeout(() => setPetImage('normal'), 3000);
         }
 
