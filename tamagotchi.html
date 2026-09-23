@@ -86,7 +86,8 @@
             height: 35%; /* 保持不变 */
             background-color: #000000;
             border: 3px solid #00ff00;
-            margin-bottom: 80px; /* 保持不变 */
+            margin-top: 20px;    /* 与标题栏拉开距离，避免拥挤 */
+            margin-bottom: 20px; /* 与下方消息框对称留白 */
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -96,6 +97,7 @@
             overflow: hidden;
             box-shadow: inset 0 0 15px rgba(0,255,0,0.5);
             border-radius: 15px; 
+            transition: background-color 0.7s ease; /* 切换宠物图片时背景色平滑过渡 */
         }
         
         /* 故障背景动画 */
@@ -181,7 +183,7 @@
         /* 状态条样式 */
        .status-bar {
             width: 85%;
-            margin-bottom: 10px; 
+            margin-bottom: 6px; 
             text-transform: uppercase;
             font-size: 12px;
             display: flex;
@@ -257,10 +259,9 @@
             transform: scale(0.95);
         }
 
-        /* 底部信息显示 */
+        /* 底部信息显示（改为正常文档流，不再用绝对定位覆盖其他元素） */
         .message-display {
-            width: 76%;
-            margin-top: 20px;
+            width: 85%; /* 与屏幕、状态条对齐 */
             min-height: 40px;
             background-color: rgba(0, 0, 0, 0.5);
             border: 1px solid #00ff00;
@@ -268,12 +269,9 @@
             text-align: left;
             font-size: 10px;
             overflow-y: scroll; 
-            max-height: 80px;
-            /* 核心修改：将位置从 200px 提高到 250px (上移) */
-            position: absolute;
-            bottom: 280px; 
-            left: 50%;
-            transform: translateX(-50%);
+            max-height: 70px;
+            box-sizing: border-box;
+            margin: 0 auto 14px auto; /* 顶部间距交给 .screen 的 margin-bottom 统一控制，避免叠加 */
         }
         /* 按钮内部的 Logo 图像样式 */
         .button-logo {
@@ -328,7 +326,7 @@
             justify-content: center;
             gap: 12px;
         }
-        #audio-toggle {
+        #audio-toggle, #reset-toggle {
             width: 34px;
             height: 34px;
             border-radius: 50%;
@@ -343,7 +341,7 @@
             box-shadow: 0 0 8px rgba(0,255,255,0.4);
             transition: transform 0.15s, box-shadow 0.15s;
         }
-        #audio-toggle:hover { transform: scale(1.1); box-shadow: 0 0 14px #00ffff; }
+        #audio-toggle:hover, #reset-toggle:hover { transform: scale(1.1); box-shadow: 0 0 14px #00ffff; }
         #audio-toggle.playing { color: #1a1a2e; background: #00ffff; animation: audioPulse 1.2s infinite; }
         @keyframes audioPulse {
             0%, 100% { box-shadow: 0 0 8px #00ffff; }
@@ -357,12 +355,17 @@
         <div class="title-bar">
             <h2 style="color: #00ffff; text-shadow: 0 0 10px #00ffff; margin: 0;">CYPURR CAT</h2>
             <button id="audio-toggle" onclick="toggleAudio()" title="8bit BGM 开/关">🔇</button>
+            <button id="reset-toggle" onclick="resetGame()" title="清空本地存档，重新开始">🔄</button>
         </div>
         
         <div class="screen" id="pet-screen">
             <div id="pet-image-container" onclick="pokePet()">
                 <img id="pet-image" src="pixel-cat-glitch-stage1.gif" alt="CyPurr Pet" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 100 100&quot;><text x=&quot;50%&quot; y=&quot;50%&quot; font-family=&quot;monospace&quot; font-size=&quot;40&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>NO IMG</text><rect x=&quot;10&quot; y=&quot;10&quot; width=&quot;80&quot; height=&quot;80&quot; fill=&quot;rgba(0,0,0,0.5)&quot; stroke=&quot;red&quot; stroke-width=&quot;2&quot; /></svg>';" >
             </div>
+        </div>
+
+        <div class="message-display" id="message-display">
+            > Initializing CyPurr system...
         </div>
 
         <div class="status-bar">
@@ -408,10 +411,6 @@
                 <p style="text-align: center;">LOADING...</p>
             </div>
             <button onclick="closeShop()" class="control-button" style="width: 100%; height: 30px; font-size: 12px; border-radius: 5px; margin-top: 10px;">CLOSE</button>
-        </div>
-
-        <div class="message-display" id="message-display">
-            > Initializing CyPurr system...
         </div>
 
     </div>
@@ -545,7 +544,7 @@
         const PET_IMAGES = {
             'stage1_normal': 'pixel-cat-glitch-stage1.gif', 
             'stage1_eating': 'pixel-cat-glitch-stage1-eating.gif', 
-            'stage1_sleeping': 'pixel-cat-glitch-stage1-sleeping.png', 
+            'stage1_sleeping': 'pixel-cat-glitch-stage1-sleeping.gif', 
             'stage1_unhappy': 'pixel-cat-glitch-stage1-unhappy.gif',
             'stage2_normal': 'pixel-cat-glitch-stage2-punk.gif',
             'stage2_eating': 'pixel-cat-glitch-stage2-punk-eating.png',
@@ -604,10 +603,85 @@
         const stageNameEl = document.getElementById('stage-name');
         const petImageEl = document.getElementById('pet-image');
         const petScreenEl = document.getElementById('pet-screen');
+
+        // --- 屏幕背景自动融合：从当前宠物图片采样背景色，让屏幕颜色和GIF场景融为一体 ---
+        let screenBaseColor = '#000000';
+
+        function updateScreenBaseColor() {
+            try {
+                if (!petImageEl.complete || !petImageEl.naturalWidth) return;
+                const w = petImageEl.naturalWidth, h = petImageEl.naturalHeight;
+                if (!w || !h) return;
+                const canvas = document.createElement('canvas');
+                canvas.width = w; canvas.height = h;
+                const cctx = canvas.getContext('2d', { willReadFrequently: true });
+                cctx.drawImage(petImageEl, 0, 0, w, h);
+
+                // 采样四角+四边中点（避开画面中央的猫咪主体），取平均值作为背景色
+                const pts = [
+                    [2, 2], [w - 3, 2], [2, h - 3], [w - 3, h - 3],
+                    [Math.floor(w / 2), 2], [Math.floor(w / 2), h - 3],
+                    [2, Math.floor(h / 2)], [w - 3, Math.floor(h / 2)]
+                ];
+                let r = 0, g = 0, b = 0, count = 0;
+                pts.forEach(([x, y]) => {
+                    const d = cctx.getImageData(x, y, 1, 1).data;
+                    if (d[3] > 200) { r += d[0]; g += d[1]; b += d[2]; count++; }
+                });
+                if (count === 0) return;
+                r = Math.round(r / count); g = Math.round(g / count); b = Math.round(b / count);
+
+                // 适当调暗，保留"屏幕"的暗色科技感，同时融入GIF的主色调
+                const dim = (c) => Math.round(c * 0.55);
+                screenBaseColor = `rgb(${dim(r)}, ${dim(g)}, ${dim(b)})`;
+
+                // 只有当前不处于"不开心"警告色状态时才立即应用（警告色优先级更高）
+                if (petState.isAlive && !petScreenEl.classList.contains('glitch-bg')) {
+                    petScreenEl.style.backgroundColor = screenBaseColor;
+                }
+            } catch (e) {
+                // Canvas 采样失败（极少数浏览器限制），静默忽略，保留原有黑色背景
+            }
+        }
+        petImageEl.addEventListener('load', updateScreenBaseColor);
         const messageDisplayEl = document.getElementById('message-display');
         const coinValueEl = document.getElementById('coin-value');
         const shopModalEl = document.getElementById('shop-modal');
         const shopItemsEl = document.getElementById('shop-items');
+
+        // --- 存档系统（仅保存在当前浏览器本地，不同设备/浏览器互不共享）---
+        const SAVE_KEY = 'cypurr_save_v1';
+
+        function saveGame() {
+            try {
+                const snapshot = { petState: petState, messageHistory: messageHistory, savedAt: Date.now() };
+                localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot));
+            } catch (e) {
+                // 本地存储不可用（隐私模式 / 被浏览器禁用等），静默忽略，不影响游戏正常运行
+            }
+        }
+
+        function loadGame() {
+            try {
+                const raw = localStorage.getItem(SAVE_KEY);
+                if (!raw) return false;
+                const snapshot = JSON.parse(raw);
+                if (!snapshot || !snapshot.petState) return false;
+                Object.assign(petState, snapshot.petState);
+                if (Array.isArray(snapshot.messageHistory)) {
+                    messageHistory = snapshot.messageHistory.slice(-messageDisplayLimit);
+                }
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function resetGame() {
+            if (!confirm("确定要清空存档、重新开始吗？这个操作无法撤销。")) return;
+            try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+            location.reload();
+        }
 
         // --- 核心 JS 逻辑 ---
 
@@ -636,7 +710,7 @@
             petImageEl.style.filter = 'none';
             petImageEl.style.opacity = '1';
             petScreenEl.classList.remove('glitch-bg');
-            petScreenEl.style.backgroundColor = '#000000';
+            petScreenEl.style.backgroundColor = screenBaseColor;
 
             let isUnhappy = false;
 
@@ -711,6 +785,7 @@
             petState.boredom = 0;
             petState.cleanliness = 100;
             setPetImage('normal');
+            saveGame();
         }
 
         function updateStatus() {
@@ -743,18 +818,22 @@
 
             checkEvolution();
             applyVisuals();
+            saveGame();
         }
 
-        function die() {
+        function die(silent) {
             petState.isAlive = false;
-            AudioEngine.sfxDie();
+            if (!silent) AudioEngine.sfxDie();
             AudioEngine.stopBgm();
             document.getElementById('audio-toggle').textContent = '🔇';
             document.getElementById('audio-toggle').classList.remove('playing');
             petImageEl.src = 'data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 100 100&quot;><text x=&quot;50%&quot; y=&quot;50%&quot; font-family=&quot;monospace&quot; font-size=&quot;50&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>[OFFLINE]</text><text x=&quot;50%&quot; y=&quot;80%&quot; font-family=&quot;monospace&quot; font-size=&quot;14&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>[CYPURR_SYSTEM_OFFLINE]</text></svg>';
             petImageEl.alt = "Pet Offline";
-            addMessage("CRITICAL ERROR: CYPURR SYSTEM OFFLINE. REBOOT REQUIRED.");
-            alert("你的 CyPurr 进入了永久故障状态。请刷新页面重启。");
+            saveGame();
+            if (!silent) {
+                addMessage("CRITICAL ERROR: CYPURR SYSTEM OFFLINE. REBOOT REQUIRED.");
+                alert("你的 CyPurr 进入了永久故障状态。点击左上角的 🔄 RESET 按钮可以清空存档、重新开始。");
+            }
         }
 
         // --- Shop 逻辑 ---
@@ -792,6 +871,7 @@
                 addMessage(`Purchased ${item.name}. Status updated!`);
                 closeShop();
                 updateStatus();
+                saveGame();
             } else {
                 AudioEngine.sfxError();
                 addMessage(`ERROR: Insufficient $CØIN. Need $${item.cost}.`);
@@ -808,6 +888,7 @@
             petState.dnaMemory.fedCount++;
             addMessage("Energy drink consumed. HP +25.");
             spawnParticles(document.getElementById('pet-image-container'), ['🍔', '⚡'], 4);
+            saveGame();
             setTimeout(() => setPetImage('normal'), 1500); 
         }
 
@@ -827,6 +908,7 @@
             void petImageEl.offsetWidth;
             petImageEl.classList.add('pet-bounce');
             spawnParticles(document.getElementById('pet-image-container'), ['🎵', '💿', '✨'], 5);
+            saveGame();
         }
 
         function cleanPet() {
@@ -835,6 +917,7 @@
             petState.cleanliness = Math.min(100, petState.cleanliness + 40);
             addMessage("Digital waste purged. Cleanliness +40.");
             spawnParticles(document.getElementById('pet-image-container'), ['🫧', '✨'], 4);
+            saveGame();
         }
 
         function restPet() {
@@ -846,15 +929,37 @@
             petState.dnaMemory.restCount++;
             addMessage("CyPurr is resting. HP +20.");
             spawnParticles(document.getElementById('pet-image-container'), ['💤'], 3);
+            saveGame();
             setTimeout(() => setPetImage('normal'), 3000);
         }
 
         function initializeGame() {
+            const hasSave = loadGame();
+
             stageValueEl.textContent = petState.stage;
             stageNameEl.textContent = petStages[petState.stage].name;
-            setPetImage('normal');
             coinValueEl.textContent = petState.coins;
-            addMessage("System ready. CyPurr is running in Casual Mode.");
+            hpValueEl.textContent = petState.hp;
+            hpProgressEl.style.width = petState.hp + '%';
+            boredomValueEl.textContent = petState.boredom;
+            boredomProgressEl.style.width = petState.boredom + '%';
+            cleanlinessValueEl.textContent = petState.cleanliness;
+            cleanlinessProgressEl.style.width = petState.cleanliness + '%';
+
+            if (petState.isAlive) {
+                setPetImage('normal');
+                updateScreenBaseColor();
+                applyVisuals();
+            } else {
+                die(true); // 静默恢复离线画面，不重复弹窗/音效
+            }
+
+            if (messageHistory.length) {
+                messageDisplayEl.innerHTML = messageHistory.join('<br>');
+                messageDisplayEl.scrollTop = messageDisplayEl.scrollHeight;
+            }
+            addMessage(hasSave ? "System resumed from local save." : "System ready. CyPurr is running in Casual Mode.");
+
             setInterval(updateStatus, updateInterval);
         }
 
