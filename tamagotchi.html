@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyPurr - 赛博像素猫 (休闲模式)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* CSS: 亚逼 Y2K 风格样式 */
+        body {
+            background-color: #1a1a2e;
+            color: #00ff00;
+            font-family: 'Press Start 2P', cursive, 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            background-image: 
+                linear-gradient(to right, rgba(0,255,255,0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0,255,255,0.05) 1px, transparent 1px),
+                linear-gradient(rgba(0, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0) 50%);
+            background-size: 20px 20px, 20px 20px, 100% 4px;
+            background-position: 0 0, 0 0, 0 0;
+            animation: scanlineAnim 8s infinite linear, glitchBackground 20s infinite alternate;
+        }
+
+        @keyframes scanlineAnim {
+            0% { background-position: 0 0, 0 0, 0 0; }
+            100% { background-position: 0 0, 0 0, 0 4px; }
+        }
+
+        @keyframes glitchBackground {
+            0%, 70%, 75%, 80%, 100% { filter: hue-rotate(0deg) saturate(1); opacity: 1; transform: translate(0); }
+            71% { filter: hue-rotate(90deg) saturate(2); opacity: 0.9; transform: translate(-2px, -2px); }
+            76% { filter: hue-rotate(180deg) saturate(1.5); opacity: 0.95; transform: translate(2px, 2px); }
+            81% { filter: hue-rotate(270deg) saturate(1.8); opacity: 0.85; transform: translate(-3px, 3px); }
+        }
+
+        /* --- 拓麻歌子经典外壳形状 V4.2/V4.3 (保持不变) --- */
+        .tamagotchi-shell {
+            width: 450px; /* 宽度略微收窄，更像掌机 */
+            height: 600px; /* 保持适中高度 */
+            background: linear-gradient(145deg, rgba(30,30,40,0.9), rgba(10,10,20,0.9));
+            border: 4px solid #00ffff;
+            
+            /* 模拟经典拓麻歌子外形：顶部圆、底部更饱满的椭圆，两侧保持圆润的弧度 */
+            border-radius: 30px 30px 200px 200px / 190px 190px 200px 200px; 
+            
+            box-shadow: 
+                0 0 40px rgba(0,255,255,0.5), 
+                inset 0 0 20px rgba(0,255,255,0.3), 
+                5px 5px 15px rgba(0,0,0,0.5); 
+            padding: 25px; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            backdrop-filter: blur(5px); 
+            transform: scale(0.95);
+            transition: transform 0.3s ease-out;
+        }
+
+        .tamagotchi-shell:hover {
+            transform: scale(1);
+        }
+        
+        /* 内部电路板纹理，匹配新外壳形状 */
+        .tamagotchi-shell::before {
+            content: '';
+            position: absolute;
+            top: 8px; left: 8px; right: 8px; bottom: 8px;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" fill="none" stroke="rgba(0,255,255,0.08)" stroke-width="2"/><line x1="20" y1="20" x2="80" y2="80" stroke="rgba(0,255,255,0.05)" stroke-width="1"/><line x1="20" y1="80" x2="80" y2="20" stroke="rgba(0,255,255,0.05)" stroke-width="1"/></svg>');
+            background-size: 50px 50px;
+            opacity: 0.15;
+            z-index: -1;
+            /* 匹配外壳内部形状的圆角 */
+            border-radius: 85px 85px 145px 145px / 85px 85px 215px 215px; 
+            pointer-events: none;
+        }
+
+        /* 屏幕样式 */
+        .screen {
+            width: 85%; /* 保持不变 */
+            height: 35%; /* 保持不变 */
+            background-color: #000000;
+            border: 3px solid #00ff00;
+            margin-bottom: 80px; /* 保持不变 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 15px rgba(0,255,0,0.5);
+            border-radius: 15px; 
+        }
+        
+        /* 故障背景动画 */
+        .screen.glitch-bg::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: linear-gradient(rgba(255,0,255,0.1) 50%, rgba(0,255,255,0.1) 50%);
+            background-size: 100% 10px;
+            animation: screenGlitch 0.5s infinite alternate;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.3;
+        }
+
+        @keyframes screenGlitch {
+            0% { transform: translate(0, 0); opacity: 0.3; }
+            50% { transform: translate(2px, 2px); opacity: 0.4; }
+            100% { transform: translate(-2px, -2px); opacity: 0.2; }
+        }
+
+        /* 宠物形象容器 */
+        #pet-image-container {
+            position: relative;
+            width: 100%;
+            height: 90%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #pet-image {
+            max-width: 80%;
+            max-height: 80%;
+            image-rendering: pixelated;
+            animation: petGlitch 8s infinite alternate;
+        }
+
+        @keyframes petGlitch {
+            0%, 60%, 65%, 70%, 100% { transform: translate(0); filter: brightness(1) contrast(1); }
+            61% { transform: translate(2px, 2px) scale(1.02); filter: brightness(1.5) contrast(0.8); }
+            66% { transform: translate(-3px, 3px) scale(0.98); filter: brightness(0.8) contrast(1.2); }
+            71% { transform: translate(1px, -1px); filter: brightness(1.2) contrast(0.9); }
+        }
+
+        /* 状态条样式 */
+       .status-bar {
+            width: 85%;
+            margin-bottom: 10px; 
+            text-transform: uppercase;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .progress-container {
+            flex-grow: 1;
+            height: 15px; 
+            background-color: #333;
+            border: 2px solid #00ff00;
+            box-shadow: inset 0 0 5px rgba(0,255,0,0.3);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #00ff00;
+            transition: width 0.5s ease-out;
+            animation: progressPulse 2s infinite alternate;
+        }
+
+        @keyframes progressPulse {
+            0% { filter: brightness(1); }
+            100% { filter: brightness(1.2); }
+        }
+        
+        /* --- 弧形按钮布局 --- */
+        .controls {
+            position: absolute; 
+            bottom: 45px; 
+            width: 85%; 
+            display: flex;
+            justify-content: space-around; 
+            align-items: flex-end; 
+            height: 160px; 
+        }
+
+        .control-button {
+            width: 55px; 
+            height: 55px; 
+            background-color: rgba(68, 68, 68, 0.8);
+            color: #00ff00;
+            border: 3px solid #00ffff;
+            border-radius: 50%;
+            font-size: 20px; 
+            cursor: pointer;
+            transition: background-color 0.2s, box-shadow 0.2s, transform 0.1s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 12px rgba(0,255,255,0.3);
+            position: relative; 
+        }
+
+        /* 微调按钮的垂直位置以形成弧形 (保持不变) */
+        .controls .control-button:nth-child(1) { bottom: 55px; } /* 左一 */
+        .controls .control-button:nth-child(2) { bottom: 22px; } /* 左二略高 */
+        .controls .control-button:nth-child(3) { bottom: 10px; } /* 中间最高 */
+        .controls .control-button:nth-child(4) { bottom: 22px; } /* 右二略高 */
+        .controls .control-button:nth-child(5) { bottom: 55px; } /* 右一 */
+
+
+        .control-button:hover {
+            background-color: #00ffff;
+            color: #1a1a2e;
+            box-shadow: 0 0 20px #00ffff, inset 0 0 8px #00ffff;
+            transform: scale(1.05);
+        }
+        .control-button:active {
+            transform: scale(0.95);
+        }
+
+        /* 底部信息显示 */
+        .message-display {
+            width: 76%;
+            margin-top: 20px;
+            min-height: 40px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 1px solid #00ff00;
+            padding: 5px;
+            text-align: left;
+            font-size: 10px;
+            overflow-y: scroll; 
+            max-height: 80px;
+            /* 核心修改：将位置从 200px 提高到 250px (上移) */
+            position: absolute;
+            bottom: 280px; 
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        /* 按钮内部的 Logo 图像样式 */
+        .button-logo {
+            max-width: 130%; /* 控制图片最大宽度 */
+            max-height: 130%; /* 控制图片最大高度 */
+            image-rendering: pixelated; /* 保持像素风格 */
+            filter: brightness(1.2) drop-shadow(0 0 5px rgba(0,255,255,0.5)); /* 添加光效和投影 */
+            transition: filter 0.2s ease-out;
+            border-radius: 50%;
+        }
+
+        .control-button:hover .button-logo {
+            filter: brightness(1.8) drop-shadow(0 0 8px #00ffff); /* hover 时更亮、投影更明显 */
+        }
+        
+        /* Shop Modal 样式 (保持不变) */
+        #shop-modal {
+            border-radius: 10px;
+            box-shadow: 0 0 20px #ffeb3b88; 
+            animation: fadeIn 0.3s ease-out;
+            border: 2px solid #ffeb3b; 
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        
+        .shop-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px dashed #00ff0055;
+            padding: 5px 0;
+            color: #e0f7fa;
+        }
+        .shop-item button {
+            background-color: #ffeb3b; 
+            color: #1a1a2e;
+            border: none;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-size: 10px;
+            font-family: 'Press Start 2P', cursive;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="tamagotchi-shell">
+        <h2 style="color: #00ffff; text-shadow: 0 0 10px #00ffff;">CYPURR CAT</h2>
+        
+        <div class="screen" id="pet-screen">
+            <div id="pet-image-container">
+                <img id="pet-image" src="pixel-cat-glitch-stage1.gif" alt="CyPurr Pet" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 100 100&quot;><text x=&quot;50%&quot; y=&quot;50%&quot; font-family=&quot;monospace&quot; font-size=&quot;40&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>NO IMG</text><rect x=&quot;10&quot; y=&quot;10&quot; width=&quot;80&quot; height=&quot;80&quot; fill=&quot;rgba(0,0,0,0.5)&quot; stroke=&quot;red&quot; stroke-width=&quot;2&quot; /></svg>';" >
+            </div>
+        </div>
+
+        <div class="status-bar">
+            HP: <span id="hp-value">100</span>%
+            <div class="progress-container">
+                <div id="hp-progress" class="progress-fill" style="width: 100%;"></div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            MOOD: <span id="boredom-value">0</span>%
+            <div class="progress-container">
+                <div id="boredom-progress" class="progress-fill" style="width: 0%; background-color: #ff00ff;"></div> 
+            </div>
+        </div>
+
+        <div class="status-bar">
+            CLEANLINESS: <span id="cleanliness-value">100</span>%
+            <div class="progress-container">
+                <div id="cleanliness-progress" class="progress-fill" style="width: 100%;"></div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            STAGE: <span id="stage-value">1</span> - <span id="stage-name">Digital Feline</span>
+        </div>
+
+        <div class="status-bar" style="margin-top: 10px; color: #ffeb3b;justify-content: center;">
+            $CØIN: <span id="coin-value">10</span>
+        </div>
+
+        <div class="controls">
+            <button class="control-button" onclick="feedPet()"><img src="feed_logo.png" alt="Feed" class="button-logo"></button> 
+            <button class="control-button" onclick="playPet()"><img src="play_logo.png" alt="Play" class="button-logo"></button> 
+            <button class="control-button" onclick="cleanPet()"><img src="clean_logo.png" alt="Clean" class="button-logo"></button>
+            <button class="control-button" onclick="restPet()"><img src="standby_logo.png" alt="Standby" class="button-logo"></button> 
+            <button class="control-button" onclick="openShop()"><img src="shop_logo.png" alt="Shop" class="button-logo"></button> 
+        </div>
+
+        <div id="shop-modal" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width: 85%; background: rgba(0,0,0,0.95); border: 2px solid #ffeb3b; padding: 10px; z-index: 10; font-size: 12px;">
+            <h3 style="color:#ffeb3b; text-align:center; margin-top:0;">$SHOP</h3>
+            <div id="shop-items">
+                <p style="text-align: center;">LOADING...</p>
+            </div>
+            <button onclick="closeShop()" class="control-button" style="width: 100%; height: 30px; font-size: 12px; border-radius: 5px; margin-top: 10px;">CLOSE</button>
+        </div>
+
+        <div class="message-display" id="message-display">
+            > Initializing CyPurr system...
+        </div>
+
+    </div>
+
+    <script>
+        // --- 游戏配置 ---
+        const updateInterval = 4000; 
+
+        const PET_IMAGES = {
+            'stage1_normal': 'pixel-cat-glitch-stage1.gif', 
+            'stage1_eating': 'pixel-cat-glitch-stage1-eating.jpg', 
+            'stage1_sleeping': 'pixel-cat-glitch-stage1-sleeping.png', 
+            'stage1_unhappy': 'pixel-cat-glitch-stage1-unhappy.gif',
+            'stage2_normal': 'pixel-cat-glitch-stage2-punk.gif',
+            'stage2_eating': 'pixel-cat-glitch-stage2-punk-eating.png',
+            'stage2_sleeping': 'pixel-cat-glitch-stage2-punk-sleeping.png',
+            'stage2_unhappy': 'pixel-cat-glitch-stage2-punk-unhappy.gif',
+            'stage3_normal': 'pixel-cat-glitch-stage3-lofi.gif',
+            'stage3_eating': 'pixel-cat-glitch-stage3-lofi-eating.png',
+            'stage3_sleeping': 'pixel-cat-glitch-stage3-lofi-sleeping.png',
+            'stage3_unhappy': 'pixel-cat-glitch-stage3-lofi-unhappy.gif',
+        };
+
+        const petStages = {
+            1: { name: "Digital Feline", rebelliousnessThreshold: 300, lofiThreshold: 300, imagePrefix: 'stage1' },
+            2: { name: "Cyberpunk Rebel", imagePrefix: 'stage2' },
+            3: { name: "Lo-Fi Glitcher", imagePrefix: 'stage3' }
+        };
+
+        const shopItems = [
+            { id: 1, name: "💊 HP Potion (+50 HP)", cost: 15, effect: () => petState.hp = Math.min(100, petState.hp + 50) },
+            { id: 2, name: "🎧 Chill Block (-50 Boredom)", cost: 25, effect: () => petState.boredom = Math.max(0, petState.boredom - 50) },
+            { id: 3, name: "🔋 Max Charge (HP=100)", cost: 50, effect: () => petState.hp = 100 },
+        ];
+
+
+        // --- 宠物状态 ---
+        let petState = {
+            hp: 100,      
+            boredom: 0,   
+            cleanliness: 100,
+            rebelliousness: 0,
+            lofiAccumulation: 0,
+            coins: 10,
+            stage: 1, 
+            currentActivity: 'normal',
+            isAlive: true,
+            // --- DNA 记忆系统 ---
+            dnaMemory: {
+                fedCount: 0,
+                playCount: 0,
+                restCount: 0,
+                totalRebelliousness: 0
+            }
+        };
+
+        const messageDisplayLimit = 5;
+        let messageHistory = [];
+
+        // --- DOM 元素获取 ---
+        const hpValueEl = document.getElementById('hp-value');
+        const hpProgressEl = document.getElementById('hp-progress');
+        const boredomValueEl = document.getElementById('boredom-value');
+        const boredomProgressEl = document.getElementById('boredom-progress');
+        const cleanlinessValueEl = document.getElementById('cleanliness-value');
+        const cleanlinessProgressEl = document.getElementById('cleanliness-progress');
+        const stageValueEl = document.getElementById('stage-value');
+        const stageNameEl = document.getElementById('stage-name');
+        const petImageEl = document.getElementById('pet-image');
+        const petScreenEl = document.getElementById('pet-screen');
+        const messageDisplayEl = document.getElementById('message-display');
+        const coinValueEl = document.getElementById('coin-value');
+        const shopModalEl = document.getElementById('shop-modal');
+        const shopItemsEl = document.getElementById('shop-items');
+
+        // --- 核心 JS 逻辑 ---
+
+        function addMessage(msg) {
+            const timestamp = new Date().toLocaleTimeString('en-GB');
+            messageHistory.push(`[${timestamp}] > ${msg}`);
+            if (messageHistory.length > messageDisplayLimit) {
+                messageHistory.shift();
+            }
+            messageDisplayEl.innerHTML = messageHistory.join('<br>');
+            messageDisplayEl.scrollTop = messageDisplayEl.scrollHeight;
+        }
+
+        function setPetImage(activity) {
+            const currentStage = petStages[petState.stage];
+            const imageKey = `${currentStage.imagePrefix}_${activity}`;
+            const imageSrc = PET_IMAGES[imageKey] || PET_IMAGES[`${currentStage.imagePrefix}_normal`]; 
+            
+            if (petImageEl.src.split('/').pop() !== imageSrc.split('/').pop()) {
+                petImageEl.src = imageSrc;
+                petState.currentActivity = activity;
+            }
+        }
+
+        function applyVisuals() {
+            petImageEl.style.filter = 'none';
+            petImageEl.style.opacity = '1';
+            petScreenEl.classList.remove('glitch-bg');
+            petScreenEl.style.backgroundColor = '#000000';
+
+            let isUnhappy = false;
+
+            if (petState.hp < 25) { 
+                petImageEl.style.filter = 'grayscale(100%) brightness(0.5) contrast(1.2)';
+                petImageEl.style.opacity = '0.7';
+                petScreenEl.style.backgroundColor = '#4a0e0e';
+                addMessage("WARNING: LOW_POWER_MODE. HP CRITICAL.");
+                isUnhappy = true;
+            } else if (petState.boredom > 80) { 
+                petImageEl.style.filter = `hue-rotate(${Math.floor(petState.boredom * 0.5)}deg) contrast(2)`;
+                petScreenEl.classList.add('glitch-bg');
+                addMessage("ALERT: PET_AGITATION_LEVEL_HIGH.");
+                isUnhappy = true;
+            } else if (petState.cleanliness < 20) {
+                petImageEl.style.filter = 'saturate(0.5) blur(1px)';
+                petScreenEl.style.backgroundColor = '#303020';
+                addMessage("WARNING: DIGITAL_WASTE_ACCUMULATION.");
+                isUnhappy = true;
+            }
+
+            if (isUnhappy) {
+                if (petState.currentActivity !== 'unhappy' && PET_IMAGES[`${petStages[petState.stage].imagePrefix}_unhappy`]) {
+                    setPetImage('unhappy');
+                }
+            } else if (petState.currentActivity !== 'normal' && petState.currentActivity !== 'eating' && petState.currentActivity !== 'sleeping') {
+                setPetImage('normal');
+            }
+        }
+        
+        function checkEvolution() {
+            const currentStageConfig = petStages[petState.stage];
+            if (!currentStageConfig || petState.stage !== 1) return;
+
+            if (petState.rebelliousness >= currentStageConfig.rebelliousnessThreshold) {
+                if (petState.hp > 50 && petState.boredom > 70) {
+                    evolvePet(2); 
+                    return;
+                }
+            }
+            if (petState.lofiAccumulation >= currentStageConfig.lofiThreshold) {
+                if (petState.hp < 50 && petState.boredom < 30) {
+                    evolvePet(3); 
+                    return;
+                }
+            }
+        }
+
+        function evolvePet(newStage) {
+            petState.stage = newStage;
+            const newStageConfig = petStages[newStage];
+            stageValueEl.textContent = newStage;
+            stageNameEl.textContent = newStageConfig.name;
+            addMessage(`[EVO] PET EVOLVED TO STAGE ${newStage}: ${newStageConfig.name}!`);
+            alert(`恭喜！你的 CyPurr 进化到了 ${newStageConfig.name}！`);
+            
+            petState.rebelliousness = 0;
+            petState.lofiAccumulation = 0;
+            
+            if (newStage === 2) { 
+                if (petState.dnaMemory.totalRebelliousness > 1500) {
+                    addMessage("[EVO] WARNING: EXTREME REBELLION DETECTED. HP base is 80.");
+                    petState.hp = 80;
+                } else {
+                    petState.hp = 100;
+                }
+            } else {
+                 petState.hp = 100;
+            }
+            
+            petState.boredom = 0;
+            petState.cleanliness = 100;
+            setPetImage('normal');
+        }
+
+        function updateStatus() {
+            if (!petState.isAlive) return;
+
+            petState.hp = Math.max(0, petState.hp - 1);       
+            petState.boredom = Math.min(100, petState.boredom + 1); 
+            petState.cleanliness = Math.max(0, petState.cleanliness - 1);
+
+            if (petState.boredom > 70) {
+                petState.rebelliousness = Math.min(1000, petState.rebelliousness + 1);
+                petState.dnaMemory.totalRebelliousness += 1;
+            }
+            if (petState.hp < 30) {
+                petState.lofiAccumulation = Math.min(1000, petState.lofiAccumulation + 1);
+            }
+
+            coinValueEl.textContent = petState.coins;
+            hpValueEl.textContent = petState.hp;
+            hpProgressEl.style.width = petState.hp + '%';
+            boredomValueEl.textContent = petState.boredom;
+            boredomProgressEl.style.width = petState.boredom + '%';
+            cleanlinessValueEl.textContent = petState.cleanliness;
+            cleanlinessProgressEl.style.width = petState.cleanliness + '%';
+            
+            if (petState.hp <= 0 || petState.boredom >= 100 || petState.cleanliness <= 0) {
+                die();
+                return;
+            }
+
+            checkEvolution();
+            applyVisuals();
+        }
+
+        function die() {
+            petState.isAlive = false;
+            petImageEl.src = 'data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 100 100&quot;><text x=&quot;50%&quot; y=&quot;50%&quot; font-family=&quot;monospace&quot; font-size=&quot;50&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>[OFFLINE]</text><text x=&quot;50%&quot; y=&quot;80%&quot; font-family=&quot;monospace&quot; font-size=&quot;14&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>[CYPURR_SYSTEM_OFFLINE]</text></svg>';
+            petImageEl.alt = "Pet Offline";
+            addMessage("CRITICAL ERROR: CYPURR SYSTEM OFFLINE. REBOOT REQUIRED.");
+            alert("你的 CyPurr 进入了永久故障状态。请刷新页面重启。");
+        }
+
+        // --- Shop 逻辑 ---
+        function openShop() {
+            if (!petState.isAlive) return;
+            shopModalEl.style.display = 'block';
+            renderShopItems();
+            addMessage("SHOP OPENED. $CØIN available: " + petState.coins);
+        }
+
+        function closeShop() {
+             shopModalEl.style.display = 'none'; // 修复：确保 closeShop 函数能关闭模态框
+        }
+
+        function renderShopItems() {
+            shopItemsEl.innerHTML = shopItems.map(item => `
+                <div class="shop-item">
+                    <span>${item.name}</span>
+                    <div>
+                        <span style="color:#ffeb3b;">$${item.cost}</span>
+                        <button onclick="buyItem(${item.id})">BUY</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function buyItem(itemId) {
+            const item = shopItems.find(i => i.id === itemId);
+            if (!item) return;
+
+            if (petState.coins >= item.cost) {
+                petState.coins -= item.cost;
+                item.effect();
+                addMessage(`Purchased ${item.name}. Status updated!`);
+                closeShop();
+                updateStatus();
+            } else {
+                addMessage(`ERROR: Insufficient $CØIN. Need $${item.cost}.`);
+            }
+        }
+        
+        // --- 交互按钮功能 ---
+        function feedPet() {
+            if (!petState.isAlive) return;
+            setPetImage('eating');
+            petState.hp = Math.min(100, petState.hp + 25);
+            petState.boredom = Math.min(100, petState.boredom + 5);
+            petState.dnaMemory.fedCount++;
+            addMessage("Energy drink consumed. HP +25.");
+            setTimeout(() => setPetImage('normal'), 1500); 
+        }
+
+        function playPet() {
+            if (!petState.isAlive) return;
+            
+            const coinGain = 5 + Math.floor(Math.random() * 3);
+            petState.coins += coinGain;
+
+            petState.boredom = Math.max(0, petState.boredom - 35);
+            petState.hp = Math.max(0, petState.hp - 10);
+            petState.dnaMemory.playCount++;
+            addMessage(`Noise music engaged. Boredom -35. $CØIN +${coinGain}!`);
+        }
+
+        function cleanPet() {
+            if (!petState.isAlive) return;
+            petState.cleanliness = Math.min(100, petState.cleanliness + 40);
+            addMessage("Digital waste purged. Cleanliness +40.");
+        }
+
+        function restPet() {
+            if (!petState.isAlive) return;
+            setPetImage('sleeping');
+            petState.hp = Math.min(100, petState.hp + 20);
+            petState.boredom = Math.max(0, petState.boredom - 15);
+            petState.dnaMemory.restCount++;
+            addMessage("CyPurr is resting. HP +20.");
+            setTimeout(() => setPetImage('normal'), 3000);
+        }
+
+        function initializeGame() {
+            stageValueEl.textContent = petState.stage;
+            stageNameEl.textContent = petStages[petState.stage].name;
+            setPetImage('normal');
+            coinValueEl.textContent = petState.coins;
+            addMessage("System ready. CyPurr is running in Casual Mode.");
+            setInterval(updateStatus, updateInterval);
+        }
+
+        window.onload = initializeGame;
+    </script>
+
+</body>
+</html>
