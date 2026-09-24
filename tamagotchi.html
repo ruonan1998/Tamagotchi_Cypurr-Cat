@@ -164,6 +164,30 @@
 
         #pet-image-container { cursor: pointer; }
 
+        /* Game Over 遮罩层：黑灰色半透明框 + 大字提示，默认隐藏 */
+        #game-over-overlay {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(30, 30, 30, 0.72);
+            border: 2px solid rgba(200, 200, 200, 0.6);
+            border-radius: 8px;
+            padding: 14px 28px;
+            z-index: 10;
+            box-shadow: 0 0 20px rgba(0,0,0,0.6);
+        }
+        #game-over-overlay.show { display: block; }
+        #game-over-overlay span {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 20px;
+            color: #eaeaea;
+            text-shadow: 0 0 8px #ff2b2b, 0 0 16px rgba(255,0,0,0.6);
+            letter-spacing: 2px;
+            white-space: nowrap;
+        }
+
         /* 互动粒子效果：爱心/音符/星星飘出屏幕 */
         .particle {
             position: absolute;
@@ -362,6 +386,7 @@
             <div id="pet-image-container" onclick="pokePet()">
                 <img id="pet-image" src="pixel-cat-glitch-stage1.gif" alt="CyPurr Pet" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 100 100&quot;><text x=&quot;50%&quot; y=&quot;50%&quot; font-family=&quot;monospace&quot; font-size=&quot;40&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>NO IMG</text><rect x=&quot;10&quot; y=&quot;10&quot; width=&quot;80&quot; height=&quot;80&quot; fill=&quot;rgba(0,0,0,0.5)&quot; stroke=&quot;red&quot; stroke-width=&quot;2&quot; /></svg>';" >
             </div>
+            <div id="game-over-overlay"><span>GAME OVER</span></div>
         </div>
 
         <div class="message-display" id="message-display">
@@ -827,8 +852,9 @@
             AudioEngine.stopBgm();
             document.getElementById('audio-toggle').textContent = '🔇';
             document.getElementById('audio-toggle').classList.remove('playing');
-            petImageEl.src = 'data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 100 100&quot;><text x=&quot;50%&quot; y=&quot;50%&quot; font-family=&quot;monospace&quot; font-size=&quot;50&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>[OFFLINE]</text><text x=&quot;50%&quot; y=&quot;80%&quot; font-family=&quot;monospace&quot; font-size=&quot;14&quot; fill=&quot;red&quot; text-anchor=&quot;middle&quot; alignment-baseline=&quot;middle&quot;>[CYPURR_SYSTEM_OFFLINE]</text></svg>';
-            petImageEl.alt = "Pet Offline";
+            petImageEl.src = 'pixel-cat-glitch-dead.gif';
+            petImageEl.alt = "Pet Deceased";
+            document.getElementById('game-over-overlay').classList.add('show');
             saveGame();
             if (!silent) {
                 addMessage("CRITICAL ERROR: CYPURR SYSTEM OFFLINE. REBOOT REQUIRED.");
